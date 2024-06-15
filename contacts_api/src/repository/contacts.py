@@ -1,12 +1,15 @@
 from sqlalchemy.orm import Session
 from contacts_api.src.database import models
 from contacts_api.src import schemas
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_contact(db: Session, contact_id: int):
     return db.query(models.Contact).filter(models.Contact.id == contact_id).first()
 
-def get_contacts(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Contact).offset(skip).limit(limit).all()
+def get_contacts(db: Session):
+    return db.query(models.Contact).all()
 
 def create_contact(db: Session, contact: schemas.ContactCreate):
     db_contact = models.Contact(**contact.dict())

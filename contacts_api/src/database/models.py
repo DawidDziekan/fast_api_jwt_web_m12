@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Date
+from sqlalchemy import Column, Integer, String, Date, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
 from .db import Base
 
 class Contact(Base):
@@ -9,3 +10,13 @@ class Contact(Base):
     email = Column(String, unique=True, index=True)
     phone_number = Column(String)
     birthday = Column(Date)
+    
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner = relationship("User", back_populates="contacts")
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    contacts = relationship("Contact", back_populates="owner")

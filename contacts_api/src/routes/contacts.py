@@ -1,61 +1,61 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from src.database import models
 from src.repository import contacts
 from contacts_api.src import schemas
-from src.database import db
-from src.database.db import engine, Base 
+from contacts_api.src.services import auth
+from src.database import db 
 
-Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+router = APIRouter()
 
-@app.post("/contacts/", response_model=schemas.Contact)
-def create_contact(contact: schemas.ContactCreate, db: Session = Depends(db.get_db)):
+@router.post("/contacts/", response_model=schemas.Contact)
+def create_contact(contact: schemas.ContactCreate, db: Session = Depends(db.get_db), current_user: models.User = Depends(auth.get_current_user)):
     return contacts.create_contact(db, contact)
 
-@app.get("/contacts/", response_model=list[schemas.Contact])
-def read_contacts(skip: int = 0, limit: int = 100, db: Session = Depends(db.get_db)):
-    all_contacts = contacts.get_contacts(db, skip=skip, limit=limit)
-    return all_contacts
+@router.get("/contacts/", response_model=list[schemas.Contact])
+def read_contacts(skip: int = 0, limit: int = 100, db: Session = Depends(db.get_db), current_user: models.User = Depends(auth.get_current_user)):
+    return contacts.get_contacts(db, skip=skip, limit=limit)
 
-@app.get("/contacts/{contact_id}", response_model=schemas.Contact)
-def read_contact(contact_id: int, db: Session = Depends(db.get_db)):
+@router.get("/contacts/{contact_id}", response_model=schemas.Contact)
+def read_contact(contact_id: int, db: Session = Depends(db.get_db), current_user: models.User = Depends(auth.get_current_user)):
     contact = contacts.get_contact(db, contact_id)
-    if contact is None:
+    if contact is None or contact.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Contact not found")
     return contact
 
-@app.put("/contacts/{contact_id}", response_model=schemas.Contact)
-def update_contact(contact_id: int, contact: schemas.ContactUpdate, db: Session = Depends(db.get_db)):
+@router.put("/contacts/{contact_id}", response_model=schemas.Contact)
+def update_contact(contact_id: int, contact: schemas.ContactUpdate, db: Session = Depends(db.get_db), current_user: models.User = Depends(auth.get_current_user)):
     updated_contact = contacts.update_contact(db, contact_id, contact)
-    if updated_contact is None:
+    if updated_contact is None or updated_contact.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Contact not found")
     return updated_contact
 
-@app.delete("/contacts/{contact_id}", response_model=schemas.Contact)
-def delete_contact(contact_id: int, db: Session = Depends(db.get_db)):
+@router.delete("/contacts/{contact_id}", response_model=schemas.Contact)
+def delete_contact(contact_id: int, db: Session = Depends(db.get_db), current_user: models.User = Depends(auth.get_current_user)):
     deleted_contact = contacts.delete_contact(db, contact_id)
-    if deleted_contact is None:
+    if deleted_contact is None or deleted_contact.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Contact not found")
     return deleted_contact
 
-@app.get("/search/", response_model=list[schemas.Contact])
-def search_contacts(query: str, db: Session = Depends(db.get_db)):
+@router.get("/search/", response_model=list[schemas.Contact])
+def search_contacts(query: str, db: Session = Depends(db.get_db), current_user: models.User = Depends(auth.get_current_user)):
     contacts = db.query(models.Contact).filter(
         models.Contact.first_name.contains(query) |
         models.Contact.last_name.contains(query) |
-        models.Contact.email.contains(query)
+        models.Contact.email.contains(query),
+        models.Contact.owner_id == current_user.id
     ).all()
     return contacts
 
 from datetime import datetime, timedelta
 
-@app.get("/birthdays/", response_model=list[schemas.Contact])
-def upcoming_birthdays(db: Session = Depends(db.get_db)):
+@router.get("/birthdays/", response_model=list[schemas.Contact])
+def upcoming_birthdays(db: Session = Depends(db.get_db), current_user: models.User = Depends(auth.get_current_user)):
     today = datetime.today().date()
     upcoming_date = today + timedelta(days=7)
     contacts = db.query(models.Contact).filter(
-        models.Contact.birthday.between(today, upcoming_date)
+        models.Contact.birthday.between(today, upcoming_date),
+        models.Contact.owner_id == current_user.id
     ).all()
     return contacts
